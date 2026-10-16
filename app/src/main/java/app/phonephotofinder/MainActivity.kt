@@ -169,13 +169,15 @@ private fun PhotoFinderScreen() {
                                 } else emptyList()
                                 labeled.add(photo.copy(labels = labels))
                                 if (index % 5 == 0 || index == withCachedLabels.lastIndex) {
-                                    photos = labeled.toList() + withCachedLabels.drop(index + 1)
                                     status = "Analyzing on this device: ${index + 1} of ${withCachedLabels.size} items. You can search the indexed results now."
                                 }
-                                // Avoid rewriting a large JSON index after every few photos.
-                                if (index % 50 == 0 || index == withCachedLabels.lastIndex) {
+                                // Publish result updates and persist in batches to keep large scans responsive.
+                                if (index % 25 == 0 || index % 50 == 0 || index == withCachedLabels.lastIndex) {
                                     val current = labeled.toList() + withCachedLabels.drop(index + 1)
-                                    withContext(Dispatchers.IO) { LocalIndexStore.save(context, current) }
+                                    photos = current
+                                    if (index % 50 == 0 || index == withCachedLabels.lastIndex) {
+                                        withContext(Dispatchers.IO) { LocalIndexStore.save(context, current) }
+                                    }
                                 }
                             }
                             photos = labeled
