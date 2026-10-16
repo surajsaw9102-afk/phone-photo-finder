@@ -45,6 +45,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.core.content.ContextCompat
 import com.google.android.gms.tasks.Tasks
@@ -280,7 +283,7 @@ private fun PhotoFinderScreen() {
                         }
                         if (session == null && showAccount) {
                             OutlinedTextField(value = email, onValueChange = { email = it.trim() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Email") }, singleLine = true, shape = RoundedCornerShape(12.dp))
-                            OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Password") }, singleLine = true, shape = RoundedCornerShape(12.dp))
+                            OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Password") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), shape = RoundedCornerShape(12.dp))
                         }
                         if (session == null && showAccount) {
                             Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -289,7 +292,7 @@ private fun PhotoFinderScreen() {
                                         if (email.isBlank() || password.length < 6) status = "Enter your email and password (at least 6 characters)."
                                         else scope.launch {
                                             busy = true
-                                            try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signIn(email, password) }; status = "Signed in. Your gallery stays on this phone until you choose Sync metadata." }
+                                            try { val signedIn = withContext(Dispatchers.IO) { SupabaseGalleryApi.signIn(email, password) }; session = signedIn; password = ""; status = "Signed in. Your gallery stays on this phone until you choose Sync metadata." }
                                             catch (e: Exception) { status = e.message ?: "Sign-in failed." }
                                             finally { busy = false }
                                         }
@@ -302,7 +305,7 @@ private fun PhotoFinderScreen() {
                                         if (email.isBlank() || password.length < 6) status = "Enter your email and a password of at least 6 characters."
                                         else scope.launch {
                                             busy = true
-                                            try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signUp(email, password) }; status = "Account created and signed in." }
+                                            try { val signedUp = withContext(Dispatchers.IO) { SupabaseGalleryApi.signUp(email, password) }; session = signedUp; password = ""; status = "Account created and signed in." }
                                             catch (e: Exception) { status = e.message ?: "Sign-up failed." }
                                             finally { busy = false }
                                         }
