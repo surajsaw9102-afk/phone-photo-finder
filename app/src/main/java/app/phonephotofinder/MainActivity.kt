@@ -115,30 +115,44 @@ private fun PhotoFinderScreen() {
                 permissionLauncher.launch(requestedPermissions())
             } else {
                 busy = true
-                status = "Reading gallery…"
-                val found = withContext(Dispatchers.IO) { readGallery(context) }
-                photos = found
-                val imageCount = found.count { it.mediaType == "image" }
-                status = "Found $imageCount photos and ${found.size - imageCount} videos. Analyzing photos on this device…"
-                val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
-                val labeled = mutableListOf<PhotoItem>()
-                for ((index, photo) in found.withIndex()) {
-                    val labels = if (photo.mediaType == "image") {
-                        try {
-                            val image = InputImage.fromFilePath(context, photo.uri)
-                            withContext(Dispatchers.IO) { Tasks.await(labeler.process(image)) }.map { it.text.lowercase(Locale.ROOT) }
-                        } catch (_: Exception) { emptyList() }
-                    } else emptyList()
-                    labeled.add(photo.copy(labels = labels))
-                    if (index % 10 == 0 || index == found.lastIndex) {
-                        photos = labeled.toList() + found.drop(index + 1)
-                        status = "Analyzed " + (index + 1) + " of " + found.size + " photos…"
+                try {
+                    status = "Reading your gallery…"
+                    val found = withContext(Dispatchers.IO) {
+                        readGallery(context) { progress -> scope.launch { status = progress } }
                     }
+                    photos = found
+                    if (found.isEmpty()) {
+                        status = "No accessible photos or videos found. Check Android photo permissions and try again."
+                    } else {
+                        val imageCount = found.count { it.mediaType == "image" }
+                        status = "Loaded $imageCount photos and ${found.size - imageCount} videos. Analyzing photos on this device…"
+                        val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
+                        try {
+                            val labeled = mutableListOf<PhotoItem>()
+                            for ((index, photo) in found.withIndex()) {
+                                val labels = if (photo.mediaType == "image") {
+                                    try {
+                                        val image = InputImage.fromFilePath(context, photo.uri)
+                                        withContext(Dispatchers.IO) { Tasks.await(labeler.process(image)) }.map { it.text.lowercase(Locale.ROOT) }
+                                    } catch (_: Exception) { emptyList() }
+                                } else emptyList()
+                                labeled.add(photo.copy(labels = labels))
+                                if (index % 10 == 0 || index == found.lastIndex) {
+                                    photos = labeled.toList() + found.drop(index + 1)
+                                    status = "Analyzing photos on this device: ${index + 1} of ${found.size} items…"
+                                }
+                            }
+                            photos = labeled
+                            status = "Done. ${labeled.size} items indexed locally. Photo labels run on-device; video search currently uses filename/type."
+                        } finally {
+                            labeler.close()
+                        }
+                    }
+                } catch (e: Exception) {
+                    status = "Gallery scan failed: ${e.message ?: e.javaClass.simpleName}. Check photo permissions and tap Scan my gallery to retry."
+                } finally {
+                    busy = false
                 }
-                labeler.close()
-                photos = labeled
-                status = "Ready. ${labeled.size} items indexed locally. Photo labels run on-device; video search currently uses filename/type."
-                busy = false
             }
         }
     }
@@ -308,7 +322,7 @@ private fun PhotoFinderScreen() {
     }
 }
 
-private fun readGallery(context: android.content.Context): List<PhotoItem> {
+private fun readGallery(context: android.content.Context, onProgress: (String) -> Unit): List<PhotoItem> {
     val result = mutableListOf<PhotoItem>()
     val imageGranted = if (Build.VERSION.SDK_INT >= 33) {
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
@@ -318,17 +332,28 @@ private fun readGallery(context: android.content.Context): List<PhotoItem> {
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED ||
             (Build.VERSION.SDK_INT >= 34 && ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED)
     } else ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-    if (imageGranted) queryMedia(context, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image")?.let(result::addAll)
-    if (videoGranted) queryMedia(context, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video")?.let(result::addAll)
+    if (imageGranted) {
+        onProgress("Loading photos from Android MediaStore…")
+        result.addAll(queryMedia(context, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image", onProgress))
+    }
+    if (videoGranted) {
+        onProgress("Loading videos from Android MediaStore…")
+        result.addAll(queryMedia(context, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video", onProgress))
+    }
     return result
 }
 
-private fun queryMedia(context: android.content.Context, collection: Uri, mediaType: String): List<PhotoItem>? {
+private fun queryMedia(context: android.content.Context, collection: Uri, mediaType: String, onProgress: (String) -> Unit): List<PhotoItem> {
+    val kind = if (mediaType == "video") "videos" else "photos"
     return try {
-        val projection = if (mediaType == "video") arrayOf(MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.DURATION)
-            else arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME)
+        val projection = if (mediaType == "video") {
+            arrayOf(MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.DURATION)
+        } else {
+            arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME)
+        }
         val result = mutableListOf<PhotoItem>()
-        context.contentResolver.query(collection, projection, null, null, MediaStore.MediaColumns.DATE_ADDED + " DESC")?.use { cursor ->
+        // Avoid sorting the entire library during the initial scan; it can be slow on large phones.
+        context.contentResolver.query(collection, projection, null, null, null)?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
             val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
             val durationColumn = if (mediaType == "video") cursor.getColumnIndex(MediaStore.Video.Media.DURATION) else -1
@@ -340,10 +365,14 @@ private fun queryMedia(context: android.content.Context, collection: Uri, mediaT
                     mediaType = mediaType,
                     durationMs = duration
                 ))
+                if (result.size % 200 == 0) onProgress("Reading ${result.size} $kind from your phone…")
             }
         }
         result
-    } catch (_: SecurityException) { emptyList() }
+    } catch (e: SecurityException) {
+        onProgress("Android denied access to $kind. Check photo/video permissions in Settings.")
+        emptyList()
+    }
 }
 
 @Composable
