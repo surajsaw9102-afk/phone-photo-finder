@@ -4,6 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.Instant
 
 internal data class SupabaseSession(
     val accessToken: String,
@@ -48,6 +49,7 @@ internal object SupabaseGalleryApi {
 
     fun sync(session: SupabaseSession, items: List<PhotoItem>): Int {
         if (items.isEmpty()) return 0
+        val syncedAt = Instant.now().toString()
         // Keep requests bounded for large galleries; never send media bytes, only searchable metadata.
         items.chunked(100).forEach { batch ->
             val rows = JSONArray()
@@ -59,6 +61,7 @@ internal object SupabaseGalleryApi {
                     .put("display_name", item.name)
                     .put("mime_type", if (item.mediaType == "video") "video/*" else "image/*")
                     .put("labels", JSONArray(item.labels))
+                    .put("updated_at", syncedAt)
                 if (item.durationMs != null) row.put("duration_ms", item.durationMs)
                 rows.put(row)
             }
