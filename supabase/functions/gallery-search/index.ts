@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
     let dbQuery = client
       .from("gallery_items")
       .select("asset_id, media_type, display_name, mime_type, taken_at, duration_ms, width, height, labels")
-      .order("taken_at", { ascending: false, nullsFirst: false })
+      .order("updated_at", { ascending: false })
       .limit(limit);
 
     if (mediaType) dbQuery = dbQuery.eq("media_type", mediaType);
@@ -76,8 +76,8 @@ Deno.serve(async (req: Request) => {
     if (terms.length > 0) {
       // Terms are restricted to letters/numbers by the tokenizer above, so they are safe
       // to insert into this PostgREST OR filter after the 160-character query limit.
-      const safeQuery = terms.join(" ");
-      dbQuery = dbQuery.or(`display_name.ilike.%${safeQuery}%,labels.ov.{${terms.join(",")}}`);
+      const nameFilters = terms.map((term: string) => `display_name.ilike.%${term}%`);
+      dbQuery = dbQuery.or([...nameFilters, `labels.ov.{${terms.join(",")}}`].join(","));
     }
 
     const { data, error } = await dbQuery;
