@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
 
     const input = await req.json().catch(() => ({}));
     const query = typeof input.query === "string" ? input.query.trim().slice(0, 160) : "";
-    const mediaType = input.media_type === "image" || input.media_type === "video" ? input.media_type : null;
+    let mediaType: "image" | "video" | null = input.media_type === "image" || input.media_type === "video" ? input.media_type : null;
     const requestedLimit = Number(input.limit ?? 20);
     const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(50, Math.floor(requestedLimit))) : 20;
 
@@ -73,9 +73,14 @@ Deno.serve(async (req: Request) => {
       "लाल": "red", "नीला": "blue", "हरा": "green", "सफेद": "white",
       "काला": "black", "कपड़े": "clothing", "आसमान": "sky", "सूरज": "sun", "पानी": "water",
     };
-    const terms = Array.from(new Set(query.toLocaleLowerCase()
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter((term: string) => term.length > 1)
+    const rawTerms = query.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    const wantsVideo = rawTerms.some((term: string) => ["video", "videos", "clip", "clips"].includes(term));
+    const wantsImage = rawTerms.some((term: string) => ["photo", "photos", "image", "images", "picture", "pictures"].includes(term));
+    if (!mediaType && wantsVideo) mediaType = "video";
+    else if (!mediaType && wantsImage) mediaType = "image";
+    const stopWords = new Set(["show", "find", "me", "please", "my", "the", "a", "an", "in", "on", "at", "from", "with", "of", "is", "was", "are", "photo", "photos", "image", "images", "picture", "pictures", "video", "videos", "clip", "clips"]);
+    const terms = Array.from(new Set(rawTerms
+      .filter((term: string) => term.length > 1 && !stopWords.has(term))
       .slice(0, 8)
       .flatMap((term: string): string[] => synonyms[term] ? [term, synonyms[term]] : [term])));
     if (terms.length > 0) {
