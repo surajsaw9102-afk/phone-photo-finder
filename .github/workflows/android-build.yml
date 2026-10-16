@@ -3,8 +3,11 @@ name: Android debug build
 on:
   push:
     branches: [main, "feature/**"]
-  pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
