@@ -60,11 +60,25 @@ Deno.serve(async (req: Request) => {
       .limit(limit);
 
     if (mediaType) dbQuery = dbQuery.eq("media_type", mediaType);
-    const terms = query.toLocaleLowerCase()
+    const synonyms: Record<string, string> = {
+      kutta: "dog", kutte: "dog", billi: "cat", gaadi: "car", gadi: "car",
+      samundar: "beach", samudra: "ocean", pahad: "mountain", ped: "tree",
+      phool: "flower", khana: "food", aadmi: "person", ladki: "girl",
+      laal: "red", lal: "red", neela: "blue", nila: "blue", hara: "green",
+      safed: "white", kala: "black", kapde: "clothing", aasman: "sky",
+      suraj: "sun", paani: "water", pani: "water",
+    };
+    const terms = Array.from(new Set(query.toLocaleLowerCase()
       .split(/[^\p{L}\p{N}]+/u)
       .filter((term: string) => term.length > 1)
-      .slice(0, 8);
-    if (terms.length > 0) dbQuery = dbQuery.overlaps("labels", terms);
+      .slice(0, 8)
+      .flatMap((term: string) => [term, synonyms[term]].filter(Boolean))));
+    if (terms.length > 0) {
+      // Terms are restricted to letters/numbers by the tokenizer above, so they are safe
+      // to insert into this PostgREST OR filter after the 160-character query limit.
+      const safeQuery = terms.join(" ");
+      dbQuery = dbQuery.or(`display_name.ilike.%${safeQuery}%,labels.ov.{${terms.join(",")}}`);
+    }
 
     const { data, error } = await dbQuery;
     if (error) return json({ error: "Gallery search failed." }, 500);
