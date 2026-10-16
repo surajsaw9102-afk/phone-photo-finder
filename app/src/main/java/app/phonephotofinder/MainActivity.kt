@@ -49,6 +49,7 @@ import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
@@ -72,9 +73,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun PhotoFinderScreen() {
     val context = LocalContext.current
-    var photos by remember { mutableStateOf<List<PhotoItem>>(emptyList()) }
+    var photos by remember { mutableStateOf(LocalIndexStore.load(context)) }
     var query by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf("Grant photo access, then index your gallery.") }
+    var status by remember { mutableStateOf(if (LocalIndexStore.load(context).isNotEmpty()) "Loaded saved local index. Tap Scan my gallery to refresh it." else "Grant photo access, then index your gallery.") }
     var busy by remember { mutableStateOf(false) }
     var scanRequested by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
@@ -110,8 +111,8 @@ private fun PhotoFinderScreen() {
 
     LaunchedEffect(scanRequested) {
         if (scanRequested && !busy) {
-            scanRequested = false
             if (!hasPermission()) {
+                scanRequested = false
                 permissionLauncher.launch(requestedPermissions())
             } else {
                 busy = true
@@ -120,7 +121,13 @@ private fun PhotoFinderScreen() {
                     val found = withContext(Dispatchers.IO) {
                         readGallery(context) { progress -> scope.launch { status = progress } }
                     }
-                    photos = found
+                    val cachedByUri = photos.associateBy { it.uri.toString() }
+                    val withCachedLabels = found.map { item ->
+                        val cached = cachedByUri[item.uri.toString()]
+                        if (cached != null && cached.labels.isNotEmpty()) item.copy(labels = cached.labels) else item
+                    }
+                    photos = withCachedLabels
+                    LocalIndexStore.save(context, withCachedLabels)
                     if (found.isEmpty()) {
                         status = "No accessible photos or videos found. Check Android photo permissions and try again."
                     } else {
@@ -129,29 +136,35 @@ private fun PhotoFinderScreen() {
                         val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
                         try {
                             val labeled = mutableListOf<PhotoItem>()
-                            for ((index, photo) in found.withIndex()) {
-                                val labels = if (photo.mediaType == "image") {
+                            for ((index, photo) in withCachedLabels.withIndex()) {
+                                val labels = if (photo.labels.isNotEmpty()) photo.labels else if (photo.mediaType == "image") {
                                     try {
                                         val image = InputImage.fromFilePath(context, photo.uri)
                                         withContext(Dispatchers.IO) { Tasks.await(labeler.process(image)) }.map { it.text.lowercase(Locale.ROOT) }
                                     } catch (_: Exception) { emptyList() }
                                 } else emptyList()
                                 labeled.add(photo.copy(labels = labels))
-                                if (index % 10 == 0 || index == found.lastIndex) {
-                                    photos = labeled.toList() + found.drop(index + 1)
-                                    status = "Analyzing photos on this device: ${index + 1} of ${found.size} items…"
+                                if (index % 5 == 0 || index == withCachedLabels.lastIndex) {
+                                    val current = labeled.toList() + withCachedLabels.drop(index + 1)
+                                    photos = current
+                                    withContext(Dispatchers.IO) { LocalIndexStore.save(context, current) }
+                                    status = "Analyzing on this device: ${index + 1} of ${withCachedLabels.size} items. You can search the indexed results now."
                                 }
                             }
                             photos = labeled
-                            status = "Done. ${labeled.size} items indexed locally. Photo labels run on-device; video search currently uses filename/type."
+                            withContext(Dispatchers.IO) { LocalIndexStore.save(context, labeled) }
+                            status = "Done. ${labeled.size} items indexed on this device. Labels are local; videos are searchable by filename/type."
                         } finally {
                             labeler.close()
                         }
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     status = "Gallery scan failed: ${e.message ?: e.javaClass.simpleName}. Check photo permissions and tap Scan my gallery to retry."
                 } finally {
                     busy = false
+                    scanRequested = false
                 }
             }
         }
