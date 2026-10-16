@@ -347,25 +347,35 @@ private fun PhotoCard(photo: PhotoItem, onOpen: () -> Unit) {
             catch (_: Exception) { null }
         }
     }
-    Card(onClick = onOpen) {
+    Card(
+        onClick = onOpen,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2230)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
         Column {
-            bitmap?.let {
+            if (bitmap != null) {
                 Image(
-                    bitmap = it.asImageBitmap(),
+                    bitmap = bitmap!!.asImageBitmap(),
                     contentDescription = photo.name,
                     modifier = Modifier.fillMaxWidth(),
                     contentScale = ContentScale.Crop
                 )
+            } else {
+                Surface(modifier = Modifier.fillMaxWidth(), color = Color(0xFF242E3D)) {
+                    Text(if (photo.mediaType == "video") "▶" else "▧", modifier = Modifier.padding(vertical = 34.dp), color = Color(0xFFA8B8FF), style = MaterialTheme.typography.headlineMedium)
+                }
             }
-            Text(photo.name, modifier = Modifier.padding(8.dp), maxLines = 1)
+            Text(photo.name, modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp), color = Color(0xFFF4F7FB), maxLines = 1, fontWeight = FontWeight.Medium)
             if (photo.mediaType == "video") {
                 val seconds = (photo.durationMs ?: 0L) / 1000
-                Text("Video • ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}", modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp), style = MaterialTheme.typography.bodySmall)
+                Text("VIDEO • ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}", modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 5.dp, bottom = 8.dp), color = Color(0xFFA8B8FF), style = MaterialTheme.typography.labelSmall)
             }
             if (photo.labels.isNotEmpty()) {
                 Text(
-                    photo.labels.take(3).joinToString(", "),
-                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                    photo.labels.take(3).joinToString(" · "),
+                    modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 5.dp, bottom = 10.dp),
+                    color = Color(0xFFB6C1D1),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2
                 )
