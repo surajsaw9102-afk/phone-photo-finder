@@ -24,18 +24,25 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.core.content.ContextCompat
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
@@ -134,71 +141,148 @@ private fun PhotoFinderScreen() {
         }
     }
 
-    MaterialTheme {
+    val appColors = darkColorScheme(
+        primary = Color(0xFF57D6C3),
+        onPrimary = Color(0xFF09211E),
+        secondary = Color(0xFFA8B8FF),
+        onSecondary = Color(0xFF10172E),
+        background = Color(0xFF10141C),
+        onBackground = Color(0xFFF4F7FB),
+        surface = Color(0xFF1A2230),
+        onSurface = Color(0xFFF4F7FB),
+        surfaceVariant = Color(0xFF242E3D),
+        onSurfaceVariant = Color(0xFFB6C1D1),
+        outline = Color(0xFF39465A)
+    )
+
+    MaterialTheme(colorScheme = appColors) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                Text("Phone Photo Finder", style = MaterialTheme.typography.headlineSmall)
-                Text("Search photos and videos on this phone. Photo labels are generated on-device.")
-                OutlinedTextField(value = email, onValueChange = { email = it.trim() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Supabase email") }, singleLine = true)
-                OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Supabase password") }, singleLine = true)
-                if (session == null) {
-                    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                            if (email.isBlank() || password.length < 6) status = "Enter your email and password (at least 6 characters)."
-                            else scope.launch {
-                                busy = true
-                                try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signIn(email, password) }; status = "Signed in to Supabase. Your gallery stays on this phone until you choose Sync metadata." }
-                                catch (e: Exception) { status = e.message ?: "Sign-in failed." }
-                                finally { busy = false }
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2230)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text("PHONE PHOTO FINDER", color = Color(0xFF57D6C3), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                        Text("Find the moment you remember.", modifier = Modifier.padding(top = 8.dp), color = Color(0xFFF4F7FB), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Search your gallery in everyday language.", modifier = Modifier.padding(top = 6.dp), color = Color(0xFFB6C1D1), style = MaterialTheme.typography.bodyMedium)
+                        Row(modifier = Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Card(shape = RoundedCornerShape(50), colors = CardDefaults.cardColors(containerColor = Color(0xFF242E3D))) {
+                                Text("  On-device labels  ", modifier = Modifier.padding(vertical = 7.dp), color = Color(0xFFA8B8FF), style = MaterialTheme.typography.labelSmall)
                             }
-                        }, enabled = !busy) { Text("Sign in") }
-                        Button(onClick = {
-                            if (email.isBlank() || password.length < 6) status = "Enter your email and a password of at least 6 characters."
-                            else scope.launch {
-                                busy = true
-                                try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signUp(email, password) }; status = "Account created and signed in." }
-                                catch (e: Exception) { status = e.message ?: "Sign-up failed." }
-                                finally { busy = false }
+                            Card(shape = RoundedCornerShape(50), colors = CardDefaults.cardColors(containerColor = Color(0xFF242E3D))) {
+                                Text("  Sync only when you choose  ", modifier = Modifier.padding(vertical = 7.dp), color = Color(0xFF57D6C3), style = MaterialTheme.typography.labelSmall)
                             }
-                        }, enabled = !busy) { Text("Create account") }
-                    }
-                } else {
-                    Text("Signed in. Session is kept in memory for this app session.")
-                    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                            scope.launch {
-                                busy = true
-                                try {
-                                    val count = withContext(Dispatchers.IO) { SupabaseGalleryApi.sync(session!!, photos) }
-                                    status = "Synced metadata for $count gallery items. Original media files were not uploaded."
-                                } catch (e: Exception) { status = e.message ?: "Metadata sync failed." }
-                                finally { busy = false }
-                            }
-                        }, enabled = !busy && photos.isNotEmpty()) { Text("Sync metadata") }
-                        Button(onClick = { session = null; status = "Signed out on this device." }, enabled = !busy) { Text("Sign out") }
+                        }
                     }
                 }
+
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
-                    label = { Text("Try: blue shirt, dog, beach…") },
-                    singleLine = true
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Search photos and videos") },
+                    placeholder = { Text("Try “blue shirt”, “dog”, “beach”…") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp)
                 )
-                Button(onClick = {
-                    if (hasPermission()) scanRequested = true
-                    else permissionLauncher.launch(requestedPermissions())
-                }, enabled = !busy) {
-                    Text("Index my gallery")
+                Button(
+                    onClick = {
+                        if (hasPermission()) scanRequested = true
+                        else permissionLauncher.launch(requestedPermissions())
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    enabled = !busy,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF57D6C3), contentColor = Color(0xFF09211E))
+                ) {
+                    Text(if (busy) "Working…" else "Scan my gallery", modifier = Modifier.padding(vertical = 4.dp), fontWeight = FontWeight.Bold)
                 }
-                if (busy) CircularProgressIndicator(modifier = Modifier.padding(8.dp))
-                Text(status, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
-                Text(filtered.size.toString() + " result(s)", style = MaterialTheme.typography.labelLarge)
+
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2230)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("PRIVATE METADATA SYNC", color = Color(0xFFA8B8FF), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Text("Your original photos and videos stay on this phone. Sign in, then choose Sync metadata only if you want cloud search.", modifier = Modifier.padding(top = 4.dp), color = Color(0xFFB6C1D1), style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(value = email, onValueChange = { email = it.trim() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Email") }, singleLine = true, shape = RoundedCornerShape(12.dp))
+                        OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Password") }, singleLine = true, shape = RoundedCornerShape(12.dp))
+                        if (session == null) {
+                            Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        if (email.isBlank() || password.length < 6) status = "Enter your email and password (at least 6 characters)."
+                                        else scope.launch {
+                                            busy = true
+                                            try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signIn(email, password) }; status = "Signed in. Your gallery stays on this phone until you choose Sync metadata." }
+                                            catch (e: Exception) { status = e.message ?: "Sign-in failed." }
+                                            finally { busy = false }
+                                        }
+                                    },
+                                    enabled = !busy,
+                                    shape = RoundedCornerShape(12.dp)
+                                ) { Text("Sign in") }
+                                Button(
+                                    onClick = {
+                                        if (email.isBlank() || password.length < 6) status = "Enter your email and a password of at least 6 characters."
+                                        else scope.launch {
+                                            busy = true
+                                            try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signUp(email, password) }; status = "Account created and signed in." }
+                                            catch (e: Exception) { status = e.message ?: "Sign-up failed." }
+                                            finally { busy = false }
+                                        }
+                                    },
+                                    enabled = !busy,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8B8FF), contentColor = Color(0xFF10172E))
+                                ) { Text("Create account") }
+                            }
+                        } else {
+                            Text("Signed in · session lasts until the app closes", modifier = Modifier.padding(top = 8.dp), color = Color(0xFF57D6C3), style = MaterialTheme.typography.bodySmall)
+                            Row(modifier = Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            busy = true
+                                            try {
+                                                val count = withContext(Dispatchers.IO) { SupabaseGalleryApi.sync(session!!, photos) }
+                                                status = "Synced metadata for $count items. Original media files were not uploaded."
+                                            } catch (e: Exception) { status = e.message ?: "Metadata sync failed." }
+                                            finally { busy = false }
+                                        }
+                                    },
+                                    enabled = !busy && photos.isNotEmpty(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) { Text("Sync metadata") }
+                                Button(onClick = { session = null; status = "Signed out on this device." }, enabled = !busy, shape = RoundedCornerShape(12.dp)) { Text("Sign out") }
+                            }
+                        }
+                    }
+                }
+
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("YOUR RESULTS", color = Color(0xFFB6C1D1), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Text("${filtered.size} items", color = Color(0xFF57D6C3), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                }
+                if (busy) {
+                    Row(modifier = Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.padding(2.dp), color = Color(0xFF57D6C3))
+                        Text(status, color = Color(0xFFB6C1D1), style = MaterialTheme.typography.bodySmall)
+                    }
+                } else {
+                    Text(status, color = Color(0xFFB6C1D1), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 6.dp))
+                }
                 LazyVerticalGrid(
+                    modifier = Modifier.weight(1f),
                     columns = GridCells.Adaptive(minSize = 140.dp),
                     contentPadding = PaddingValues(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(filtered, key = { it.uri.toString() }) { photo ->
                         PhotoCard(photo) {
