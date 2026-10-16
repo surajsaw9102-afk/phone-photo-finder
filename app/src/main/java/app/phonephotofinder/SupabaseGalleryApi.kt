@@ -47,29 +47,41 @@ internal object SupabaseGalleryApi {
     }
 
     fun sync(session: SupabaseSession, items: List<PhotoItem>): Int {
-        val rows = JSONArray()
-        items.forEach { item ->
-            val row = JSONObject()
-                .put("owner_id", session.userId)
-                .put("asset_id", item.uri.toString())
-                .put("media_type", item.mediaType)
-                .put("display_name", item.name)
-                .put("mime_type", if (item.mediaType == "video") "video/*" else "image/*")
-                .put("labels", JSONArray(item.labels))
-            if (item.durationMs != null) row.put("duration_ms", item.durationMs)
-            rows.put(row)
+        if (items.isEmpty()) return 0
+        // Keep requests bounded for large galleries; never send media bytes, only searchable metadata.
+        items.chunked(100).forEach { batch ->
+            val rows = JSONArray()
+            batch.forEach { item ->
+                val row = JSONObject()
+                    .put("owner_id", session.userId)
+                    .put("asset_id", item.uri.toString())
+                    .put("media_type", item.mediaType)
+                    .put("display_name", item.name)
+                    .put("mime_type", if (item.mediaType == "video") "video/*" else "image/*")
+                    .put("labels", JSONArray(item.labels))
+                if (item.durationMs != null) row.put("duration_ms", item.durationMs)
+                rows.put(row)
+            }
+            request(
+                path = "/rest/v1/gallery_items?on_conflict=owner_id,asset_id",
+                method = "POST",
+                body = rows.toString(),
+                token = session.accessToken,
+                prefer = "resolution=merge-duplicates,return=minimal"
+            )
         }
-        if (rows.length() == 0) return 0
-        request(
-            path = "/rest/v1/gallery_items?on_conflict=owner_id,asset_id",
-            method = "POST",
-            body = rows.toString(),
-            token = session.accessToken,
-            prefer = "resolution=merge-duplicates,return=minimal"
-        )
-        return rows.length()
+        return items.size
     }
 
+    fun deleteCloudIndex(session: SupabaseSession) {
+        request(
+            path = "/rest/v1/gallery_items?owner_id=eq." + session.userId,
+            method = "DELETE",
+            body = "",
+            token = session.accessToken,
+            prefer = "return=minimal"
+        )
+    }
     private fun request(
         path: String,
         method: String,
@@ -87,10 +99,10 @@ internal object SupabaseGalleryApi {
             if (token != null) setRequestProperty("Authorization", "Bearer $token")
             else setRequestProperty("Authorization", "Bearer $PUBLISHABLE_KEY")
             if (prefer != null) setRequestProperty("Prefer", prefer)
-            doOutput = true
+            doOutput = body.isNotEmpty()
         }
         try {
-            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            if (body.isNotEmpty()) connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
