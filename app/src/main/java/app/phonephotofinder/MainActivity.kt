@@ -105,7 +105,7 @@ private fun PhotoFinderScreen() {
                 for ((index, photo) in found.withIndex()) {
                     val labels = try {
                         val image = InputImage.fromFilePath(context, photo.uri)
-                        Tasks.await(labeler.process(image)).map { it.text.lowercase(Locale.ROOT) }
+                        withContext(Dispatchers.IO) { Tasks.await(labeler.process(image)) }.map { it.text.lowercase(Locale.ROOT) }
                     } catch (_: Exception) {
                         emptyList()
                     }
