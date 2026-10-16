@@ -42,10 +42,11 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext\nimport kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.util.Locale
 
-private data class PhotoItem(
+internal data class PhotoItem(
     val uri: Uri,
     val name: String,
     val mediaType: String = "image",
@@ -67,7 +68,11 @@ private fun PhotoFinderScreen() {
     var query by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Grant photo access, then index your gallery.") }
     var busy by remember { mutableStateOf(false) }
-    var scanRequested by remember { mutableStateOf(false) }\n    var email by remember { mutableStateOf("") }\n    var password by remember { mutableStateOf("") }\n    var session by remember { mutableStateOf<SupabaseSession?>(null) }\n    val scope = rememberCoroutineScope()
+    var scanRequested by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var session by remember { mutableStateOf<SupabaseSession?>(null) }
+    val scope = rememberCoroutineScope()
 
     fun requestedPermissions(): Array<String> = when {
         Build.VERSION.SDK_INT >= 34 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
@@ -133,7 +138,46 @@ private fun PhotoFinderScreen() {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                 Text("Phone Photo Finder", style = MaterialTheme.typography.headlineSmall)
-                Text("Search photos and videos on this phone. Photo labels are generated on-device.")\n                OutlinedTextField(value = email, onValueChange = { email = it.trim() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Supabase email") }, singleLine = true)\n                OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Supabase password") }, singleLine = true)\n                if (session == null) {\n                    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                        Button(onClick = {\n                            if (email.isBlank() || password.length < 6) status = "Enter your email and password (at least 6 characters)."\n                            else scope.launch {\n                                busy = true\n                                try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signIn(email, password) }; status = "Signed in to Supabase. Your gallery stays on this phone until you choose Sync metadata." }\n                                catch (e: Exception) { status = e.message ?: "Sign-in failed." }\n                                finally { busy = false }\n                            }\n                        }, enabled = !busy) { Text("Sign in") }\n                        Button(onClick = {\n                            if (email.isBlank() || password.length < 6) status = "Enter your email and a password of at least 6 characters."\n                            else scope.launch {\n                                busy = true\n                                try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signUp(email, password) }; status = "Account created and signed in." }\n                                catch (e: Exception) { status = e.message ?: "Sign-up failed." }\n                                finally { busy = false }\n                            }\n                        }, enabled = !busy) { Text("Create account") }\n                    }\n                } else {\n                    Text("Signed in. Session is kept in memory for this app session.")\n                    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                        Button(onClick = {\n                            scope.launch {\n                                busy = true\n                                try {\n                                    val count = withContext(Dispatchers.IO) { SupabaseGalleryApi.sync(session!!, photos) }\n                                    status = "Synced metadata for $count gallery items. Original media files were not uploaded."\n                                } catch (e: Exception) { status = e.message ?: "Metadata sync failed." }\n                                finally { busy = false }\n                            }\n                        }, enabled = !busy && photos.isNotEmpty()) { Text("Sync metadata") }\n                        Button(onClick = { session = null; status = "Signed out on this device." }, enabled = !busy) { Text("Sign out") }\n                    }\n                }
+                Text("Search photos and videos on this phone. Photo labels are generated on-device.")
+                OutlinedTextField(value = email, onValueChange = { email = it.trim() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Supabase email") }, singleLine = true)
+                OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Supabase password") }, singleLine = true)
+                if (session == null) {
+                    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            if (email.isBlank() || password.length < 6) status = "Enter your email and password (at least 6 characters)."
+                            else scope.launch {
+                                busy = true
+                                try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signIn(email, password) }; status = "Signed in to Supabase. Your gallery stays on this phone until you choose Sync metadata." }
+                                catch (e: Exception) { status = e.message ?: "Sign-in failed." }
+                                finally { busy = false }
+                            }
+                        }, enabled = !busy) { Text("Sign in") }
+                        Button(onClick = {
+                            if (email.isBlank() || password.length < 6) status = "Enter your email and a password of at least 6 characters."
+                            else scope.launch {
+                                busy = true
+                                try { session = withContext(Dispatchers.IO) { SupabaseGalleryApi.signUp(email, password) }; status = "Account created and signed in." }
+                                catch (e: Exception) { status = e.message ?: "Sign-up failed." }
+                                finally { busy = false }
+                            }
+                        }, enabled = !busy) { Text("Create account") }
+                    }
+                } else {
+                    Text("Signed in. Session is kept in memory for this app session.")
+                    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            scope.launch {
+                                busy = true
+                                try {
+                                    val count = withContext(Dispatchers.IO) { SupabaseGalleryApi.sync(session!!, photos) }
+                                    status = "Synced metadata for $count gallery items. Original media files were not uploaded."
+                                } catch (e: Exception) { status = e.message ?: "Metadata sync failed." }
+                                finally { busy = false }
+                            }
+                        }, enabled = !busy && photos.isNotEmpty()) { Text("Sync metadata") }
+                        Button(onClick = { session = null; status = "Signed out on this device." }, enabled = !busy) { Text("Sign out") }
+                    }
+                }
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
