@@ -59,7 +59,6 @@ Deno.serve(async (req: Request) => {
       .order("updated_at", { ascending: false })
       .limit(limit);
 
-    if (mediaType) dbQuery = dbQuery.eq("media_type", mediaType);
     const synonyms: Record<string, string> = {
       kutta: "dog", kutte: "dog", billi: "cat", gaadi: "car", gadi: "car",
       samundar: "beach", samudra: "ocean", pahad: "mountain", ped: "tree",
@@ -78,6 +77,7 @@ Deno.serve(async (req: Request) => {
     const wantsImage = rawTerms.some((term: string) => ["photo", "photos", "image", "images", "picture", "pictures"].includes(term));
     if (!mediaType && wantsVideo) mediaType = "video";
     else if (!mediaType && wantsImage) mediaType = "image";
+    if (mediaType) dbQuery = dbQuery.eq("media_type", mediaType);
     const stopWords = new Set(["show", "find", "me", "please", "my", "the", "a", "an", "in", "on", "at", "from", "with", "of", "is", "was", "are", "photo", "photos", "image", "images", "picture", "pictures", "video", "videos", "clip", "clips"]);
     const terms = Array.from(new Set(rawTerms
       .filter((term: string) => term.length > 1 && !stopWords.has(term))
