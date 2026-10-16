@@ -67,6 +67,11 @@ Deno.serve(async (req: Request) => {
       laal: "red", lal: "red", neela: "blue", nila: "blue", hara: "green",
       safed: "white", kala: "black", kapde: "clothing", aasman: "sky",
       suraj: "sun", paani: "water", pani: "water",
+      "कुत्ता": "dog", "कुत्ते": "dog", "बिल्ली": "cat", "गाड़ी": "car",
+      "समुंदर": "beach", "समुद्र": "ocean", "पहाड़": "mountain", "पेड़": "tree",
+      "फूल": "flower", "खाना": "food", "आदमी": "person", "लड़की": "girl",
+      "लाल": "red", "नीला": "blue", "हरा": "green", "सफेद": "white",
+      "काला": "black", "कपड़े": "clothing", "आसमान": "sky", "सूरज": "sun", "पानी": "water",
     };
     const terms = Array.from(new Set(query.toLocaleLowerCase()
       .split(/[^\p{L}\p{N}]+/u)
