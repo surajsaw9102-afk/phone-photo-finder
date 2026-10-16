@@ -73,10 +73,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun PhotoFinderScreen() {
     val context = LocalContext.current
-    val savedIndex = remember { LocalIndexStore.load(context) }
-    var photos by remember { mutableStateOf(savedIndex) }
+    var photos by remember { mutableStateOf<List<PhotoItem>>(emptyList()) }
     var query by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf(if (savedIndex.isNotEmpty()) "Loaded ${savedIndex.size} saved items. Tap Scan my gallery to refresh the index." else "Grant photo access, then index your gallery.") }
+    var status by remember { mutableStateOf("Loading saved local index…") }
     var busy by remember { mutableStateOf(false) }
     var scanRequested by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
@@ -84,6 +83,12 @@ private fun PhotoFinderScreen() {
     var showAccount by remember { mutableStateOf(false) }
     var session by remember { mutableStateOf<SupabaseSession?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        val saved = withContext(Dispatchers.IO) { LocalIndexStore.load(context) }
+        if (photos.isEmpty() && !busy) photos = saved
+        if (!busy) status = if (saved.isNotEmpty()) "Loaded ${saved.size} saved items. Tap Scan my gallery to refresh the index." else "Grant photo access, then index your gallery."
+    }
 
     fun requestedPermissions(): Array<String> = when {
         Build.VERSION.SDK_INT >= 34 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
