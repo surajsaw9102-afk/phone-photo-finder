@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
       .split(/[^\p{L}\p{N}]+/u)
       .filter((term: string) => term.length > 1)
       .slice(0, 8)
-      .flatMap((term: string) => [term, synonyms[term]].filter(Boolean))));
+      .flatMap((term: string): string[] => synonyms[term] ? [term, synonyms[term]] : [term])));
     if (terms.length > 0) {
       // Terms are restricted to letters/numbers by the tokenizer above, so they are safe
       // to insert into this PostgREST OR filter after the 160-character query limit.
