@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
@@ -33,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -81,6 +83,7 @@ private fun PhotoFinderScreen() {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showAccount by remember { mutableStateOf(false) }
+    var confirmDeleteCloud by remember { mutableStateOf(false) }
     var session by remember { mutableStateOf<SupabaseSession?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -316,7 +319,10 @@ private fun PhotoFinderScreen() {
                                     enabled = !busy && photos.isNotEmpty(),
                                     shape = RoundedCornerShape(12.dp)
                                 ) { Text("Sync metadata") }
-                                Button(onClick = { session = null; showAccount = false; status = "Signed out on this device." }, enabled = !busy, shape = RoundedCornerShape(12.dp)) { Text("Sign out") }
+                                Button(onClick = { session = null; showAccount = false; password = ""; status = "Signed out on this device." }, enabled = !busy, shape = RoundedCornerShape(12.dp)) { Text("Sign out") }
+                            }
+                            TextButton(onClick = { confirmDeleteCloud = true }, enabled = !busy, modifier = Modifier.padding(top = 2.dp)) {
+                                Text("Delete my cloud index", color = Color(0xFFFFC66D))
                             }
                         }
                     }
@@ -350,6 +356,37 @@ private fun PhotoFinderScreen() {
                             context.startActivity(intent)
                         }
                     }
+                }
+                if (confirmDeleteCloud) {
+                    AlertDialog(
+                        onDismissRequest = { confirmDeleteCloud = false },
+                        title = { Text("Delete cloud index?") },
+                        text = { Text("This permanently deletes your synced gallery metadata from your account. Photos and videos on this phone are not affected.") },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    confirmDeleteCloud = false
+                                    val activeSession = session
+                                    if (activeSession != null) scope.launch {
+                                        busy = true
+                                        try {
+                                            withContext(Dispatchers.IO) { SupabaseGalleryApi.deleteCloudIndex(activeSession) }
+                                            status = "Cloud gallery metadata deleted. Local photos and index are unchanged."
+                                        } catch (e: Exception) {
+                                            status = e.message ?: "Could not delete the cloud index."
+                                        } finally {
+                                            busy = false
+                                        }
+                                    }
+                                },
+                                enabled = !busy,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC66D), contentColor = Color(0xFF10141C))
+                            ) { Text("Delete index") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { confirmDeleteCloud = false }, enabled = !busy) { Text("Cancel") }
+                        }
+                    )
                 }
             }
         }
