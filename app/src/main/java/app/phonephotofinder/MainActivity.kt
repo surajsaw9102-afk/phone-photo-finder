@@ -78,6 +78,7 @@ private fun PhotoFinderScreen() {
     var scanRequested by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showAccount by remember { mutableStateOf(false) }
     var session by remember { mutableStateOf<SupabaseSession?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -209,10 +210,17 @@ private fun PhotoFinderScreen() {
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("PRIVATE METADATA SYNC", color = Color(0xFFA8B8FF), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                        Text("Your original photos and videos stay on this phone. Sign in, then choose Sync metadata only if you want cloud search.", modifier = Modifier.padding(top = 4.dp), color = Color(0xFFB6C1D1), style = MaterialTheme.typography.bodySmall)
-                        OutlinedTextField(value = email, onValueChange = { email = it.trim() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Email") }, singleLine = true, shape = RoundedCornerShape(12.dp))
-                        OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Password") }, singleLine = true, shape = RoundedCornerShape(12.dp))
-                        if (session == null) {
+                        Text("Original media stays on your phone. Cloud metadata sync is optional.", modifier = Modifier.padding(top = 4.dp), color = Color(0xFFB6C1D1), style = MaterialTheme.typography.bodySmall)
+                        if (session == null && !showAccount) {
+                            Button(onClick = { showAccount = true }, modifier = Modifier.padding(top = 8.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8B8FF), contentColor = Color(0xFF10172E)) ) {
+                                Text("Connect account")
+                            }
+                        }
+                        if (session == null && showAccount) {
+                            OutlinedTextField(value = email, onValueChange = { email = it.trim() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Email") }, singleLine = true, shape = RoundedCornerShape(12.dp))
+                            OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Password") }, singleLine = true, shape = RoundedCornerShape(12.dp))
+                        }
+                        if (session == null && showAccount) {
                             Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(
                                     onClick = {
@@ -259,7 +267,7 @@ private fun PhotoFinderScreen() {
                                     enabled = !busy && photos.isNotEmpty(),
                                     shape = RoundedCornerShape(12.dp)
                                 ) { Text("Sync metadata") }
-                                Button(onClick = { session = null; status = "Signed out on this device." }, enabled = !busy, shape = RoundedCornerShape(12.dp)) { Text("Sign out") }
+                                Button(onClick = { session = null; showAccount = false; status = "Signed out on this device." }, enabled = !busy, shape = RoundedCornerShape(12.dp)) { Text("Sign out") }
                             }
                         }
                     }
