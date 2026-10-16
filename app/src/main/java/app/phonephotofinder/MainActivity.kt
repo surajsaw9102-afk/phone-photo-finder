@@ -73,9 +73,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun PhotoFinderScreen() {
     val context = LocalContext.current
-    var photos by remember { mutableStateOf(LocalIndexStore.load(context)) }
+    val savedIndex = remember { LocalIndexStore.load(context) }
+    var photos by remember { mutableStateOf(savedIndex) }
     var query by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf(if (LocalIndexStore.load(context).isNotEmpty()) "Loaded saved local index. Tap Scan my gallery to refresh it." else "Grant photo access, then index your gallery.") }
+    var status by remember { mutableStateOf(if (savedIndex.isNotEmpty()) "Loaded ${savedIndex.size} saved items. Tap Scan my gallery to refresh the index." else "Grant photo access, then index your gallery.") }
     var busy by remember { mutableStateOf(false) }
     var scanRequested by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
@@ -127,7 +128,7 @@ private fun PhotoFinderScreen() {
                         if (cached != null && cached.labels.isNotEmpty()) item.copy(labels = cached.labels) else item
                     }
                     photos = withCachedLabels
-                    LocalIndexStore.save(context, withCachedLabels)
+                    withContext(Dispatchers.IO) { LocalIndexStore.save(context, withCachedLabels) }
                     if (found.isEmpty()) {
                         status = "No accessible photos or videos found. Check Android photo permissions and try again."
                     } else {
