@@ -119,7 +119,12 @@ private fun PhotoFinderScreen() {
             "ped" to "tree", "phool" to "flower", "khana" to "food", "aadmi" to "person", "ladki" to "girl",
             "laal" to "red", "lal" to "red", "neela" to "blue", "nila" to "blue", "hara" to "green",
             "safed" to "white", "kala" to "black", "kapde" to "clothing", "shirt" to "clothing",
-            "aasman" to "sky", "suraj" to "sun", "paani" to "water", "pani" to "water"
+            "aasman" to "sky", "suraj" to "sun", "paani" to "water", "pani" to "water",
+            "कुत्ता" to "dog", "कुत्ते" to "dog", "बिल्ली" to "cat", "गाड़ी" to "car",
+            "समुंदर" to "beach", "समुद्र" to "ocean", "पहाड़" to "mountain", "पेड़" to "tree",
+            "फूल" to "flower", "खाना" to "food", "आदमी" to "person", "लड़की" to "girl",
+            "लाल" to "red", "नीला" to "blue", "हरा" to "green", "सफेद" to "white",
+            "काला" to "black", "कपड़े" to "clothing", "आसमान" to "sky", "सूरज" to "sun", "पानी" to "water"
         )
         val rawWords = q.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotBlank() }
         val wantsVideo = rawWords.any { it in setOf("video", "videos", "clip", "clips") }
