@@ -345,20 +345,37 @@ private fun PhotoFinderScreen() {
                 } else {
                     Text(status, color = Color(0xFFB6C1D1), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 6.dp))
                 }
-                LazyVerticalGrid(
-                    modifier = Modifier.weight(1f),
-                    columns = GridCells.Adaptive(minSize = 140.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(filtered, key = { it.uri.toString() }) { photo ->
-                        PhotoCard(photo) {
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(photo.uri, if (photo.mediaType == "video") "video/*" else "image/*")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (filtered.isEmpty()) {
+                    Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 40.dp)) {
+                        Text(
+                            if (photos.isEmpty()) "Your gallery index is empty" else "No matching items",
+                            color = Color(0xFFF4F7FB),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            if (photos.isEmpty()) "Grant access and tap Scan my gallery to start." else "Try a shorter search such as “dog”, “beach”, or “blue”.",
+                            modifier = Modifier.padding(top = 8.dp),
+                            color = Color(0xFFB6C1D1),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        modifier = Modifier.weight(1f),
+                        columns = GridCells.Adaptive(minSize = 140.dp),
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(filtered, key = { it.uri.toString() }) { photo ->
+                            PhotoCard(photo) {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(photo.uri, if (photo.mediaType == "video") "video/*" else "image/*")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(intent)
                             }
-                            context.startActivity(intent)
                         }
                     }
                 }
