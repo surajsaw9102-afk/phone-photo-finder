@@ -250,7 +250,7 @@ private fun PhotoFinderScreen() {
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8B8FF), contentColor = Color(0xFF10172E))
                                 ) { Text("Create account") }
                             }
-                        } else {
+                        } else if (session != null) {
                             Text("Signed in · session lasts until the app closes", modifier = Modifier.padding(top = 8.dp), color = Color(0xFF57D6C3), style = MaterialTheme.typography.bodySmall)
                             Row(modifier = Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(
