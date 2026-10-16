@@ -115,7 +115,7 @@ private fun PhotoFinderScreen() {
         val stopWords = setOf("show", "find", "me", "please", "my", "the", "a", "an", "in", "on", "at", "from", "with", "of", "is", "was", "are", "picture", "pictures", "photo", "photos", "image", "images")
         val synonyms = mapOf(
             "kutta" to "dog", "kutte" to "dog", "billi" to "cat", "gaadi" to "car", "gadi" to "car",
-            "samundar" to "beach", "samundar" to "ocean", "samudra" to "ocean", "pahad" to "mountain",
+            "samundar" to "beach", "samudra" to "ocean", "pahad" to "mountain",
             "ped" to "tree", "phool" to "flower", "khana" to "food", "aadmi" to "person", "ladki" to "girl",
             "laal" to "red", "lal" to "red", "neela" to "blue", "nila" to "blue", "hara" to "green",
             "safed" to "white", "kala" to "black", "kapde" to "clothing", "shirt" to "clothing",
@@ -129,7 +129,7 @@ private fun PhotoFinderScreen() {
         if (q.isBlank()) photos else photos.filter { photo ->
             val correctType = when { wantsVideo -> photo.mediaType == "video"; wantsImage -> photo.mediaType == "image"; else -> true }
             val searchable = photo.name.lowercase(Locale.ROOT) + " " + photo.labels.joinToString(" ").lowercase(Locale.ROOT)
-            correctType && (searchable.contains(q) || words.any { word -> searchable.contains(word) })
+            correctType && (words.isEmpty() || searchable.contains(q) || words.any { word -> searchable.contains(word) })
         }
     }
 
