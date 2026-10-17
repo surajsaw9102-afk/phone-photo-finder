@@ -5,6 +5,7 @@ import { withOAuthProtectedResource, withSupabase } from 'npm:@supabase/server@1
 import { McpServer } from 'npm:@modelcontextprotocol/sdk@1.25.3/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from 'npm:@modelcontextprotocol/sdk@1.25.3/server/webStandardStreamableHttp.js'
 import { z } from 'npm:zod@^4.1.13'
+import { hasResourceAudience } from './mcp-auth.ts'
 
 const RESOURCE_URI = 'https://qcscozdqdjjwjouxtnzf.supabase.co/functions/v1/gallery-mcp'
 const BUCKET = 'gallery-shares'
@@ -26,22 +27,6 @@ function textResult(text: string, structuredContent?: Record<string, unknown>) {
   }
 }
 
-function tokenHasResourceAudience(req: Request): boolean {
-  const authorization = req.headers.get('authorization') ?? ''
-  const token = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]
-  if (!token) return false
-  try {
-    const payloadSegment = token.split('.')[1]
-    if (!payloadSegment) return false
-    const base64 = payloadSegment.replace(/-/g, '+').replace(/_/g, '/')
-    const payload = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')))
-    const aud = payload.aud
-    return Array.isArray(aud) ? aud.includes(RESOURCE_URI) : aud === RESOURCE_URI
-  } catch {
-    return false
-  }
-}
-
 function registerTools(server: McpServer, supabase: any) {
   server.registerTool(
     'search_gallery',
@@ -56,7 +41,7 @@ function registerTools(server: McpServer, supabase: any) {
       annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
     },
     async ({ query, media_type, limit }) => {
-      const rawTerms = query.toLocaleLowerCase().split(/[^\\p{L}\\p{N}]+/u).filter(Boolean)
+      const rawTerms = query.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
       const stopWords = new Set(['show', 'find', 'me', 'please', 'my', 'the', 'a', 'an', 'in', 'on', 'at', 'from', 'with', 'of', 'is', 'was', 'are', 'photo', 'photos', 'image', 'images', 'picture', 'pictures', 'video', 'videos', 'clip', 'clips'])
       const wantsVideo = rawTerms.some((term) => ['video', 'videos', 'clip', 'clips'].includes(term))
       const wantsImage = rawTerms.some((term) => ['photo', 'photos', 'image', 'images', 'picture', 'pictures'].includes(term))
@@ -223,7 +208,7 @@ Deno.serve(
     async (req, { supabase }) => {
       // withSupabase verifies the token signature/session; this additional check
       // enforces the MCP-specific audience configured by the custom token hook.
-      if (!tokenHasResourceAudience(req)) {
+      if (!hasResourceAudience(req.headers.get('authorization'), RESOURCE_URI)) {
         return new Response(JSON.stringify({ error: 'invalid_token', error_description: 'Access token audience does not match Phone Photo Finder MCP.' }), {
           status: 401,
           headers: {
