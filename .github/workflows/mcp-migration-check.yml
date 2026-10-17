@@ -1,0 +1,51 @@
+name: MCP migration security checks
+
+on:
+  push:
+    branches: [main, "feature/**"]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - ".github/workflows/mcp-migration-check.yml"
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - ".github/workflows/mcp-migration-check.yml"
+  workflow_dispatch:
+
+jobs:
+  postgres-rls:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: phone_photo_finder_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d phone_photo_finder_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: phone_photo_finder_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Create minimal Supabase-compatible test schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/mcp-migration-bootstrap.sql
+      - name: Apply proposed MCP migration to disposable database
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261017000000_mcp_gallery_sharing.sql
+      - name: Verify OAuth audience and row-level security boundaries
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/mcp-migration-assertions.sql
