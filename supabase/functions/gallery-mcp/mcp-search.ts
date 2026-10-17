@@ -1,3 +1,3 @@
 export function tokenizeQuery(query: string): string[] {
-  return query.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+  return query.toLocaleLowerCase().split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean)
 }
