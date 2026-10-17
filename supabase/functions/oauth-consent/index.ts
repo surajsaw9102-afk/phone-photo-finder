@@ -39,7 +39,7 @@ button{padding:12px 15px;border:0;border-radius:10px;font-weight:700;cursor:poin
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const client = createClient(${JSON.stringify(SUPABASE_URL)}, ${JSON.stringify(PUBLISHABLE_KEY)}, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false }
 });
 const params = new URLSearchParams(location.search);
 const authorizationId = params.get('authorization_id');
