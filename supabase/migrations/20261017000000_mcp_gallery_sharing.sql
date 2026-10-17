@@ -21,6 +21,9 @@ create table if not exists public.gallery_shared_media (
 
 alter table public.gallery_shared_media enable row level security;
 
+-- Expose this table to authenticated REST clients; RLS below remains the row-level boundary.
+grant select, insert, update, delete on public.gallery_shared_media to authenticated;
+
 -- The OAuth access-token hook only changes the audience for client IDs explicitly
 -- registered here. Resource URI must exactly match the deployed MCP endpoint.
 create schema if not exists mcp_private;
