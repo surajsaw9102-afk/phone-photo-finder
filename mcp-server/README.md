@@ -1,40 +1,56 @@
-# ChatGPT MCP Gallery Connector (implementation plan)
+# Phone Photo Finder — ChatGPT MCP connector
 
-This package is being developed alongside the Android app. The goal is a remote MCP server that can search a single user's gallery metadata and return an explicitly shared photo to ChatGPT.
+This implementation is intentionally split into three pieces:
 
-## Current app contract
+1. Android keeps the gallery local by default, syncs searchable metadata only, and uploads a compressed JPEG preview only when the user taps Share with ChatGPT on a specific photo.
+2. Supabase owns user accounts, per-user metadata, a private gallery-shares Storage bucket, and RLS. No service-role key is shipped in Android.
+3. The MCP Edge Function exposes read-only search/latest-photo tools and returns image content only for a photo explicitly shared by the signed-in user.
 
-The Android app syncs metadata to `public.gallery_items`:
-`owner_id, asset_id, media_type, display_name, mime_type, taken_at, duration_ms, width, height, labels`.
+## Current status
 
-It does **not** currently upload image bytes. The `asset_id`/MediaStore URI is local to Android and cannot be opened by ChatGPT over the internet. Therefore metadata search alone cannot display the actual photo in a ChatGPT message.
+- supabase/functions/gallery-mcp/index.ts: MCP SDK + Streamable HTTP implementation using Supabase OAuth middleware. Not deployed by this PR.
+- supabase/functions/oauth-consent/index.ts: sign-in/consent page for the Supabase OAuth server. Not deployed by this PR.
+- supabase/migrations/20261017000000_mcp_gallery_sharing.sql: proposed migration for private photo previews, RLS, and the OAuth audience hook. Review and approve before applying to the production database.
+- Android UI adds camera-origin metadata and explicit share/unshare controls. The original file stays on the phone; only a compressed JPEG preview (max 1.8 MB) is uploaded.
+- The prior static-bearer prototype was removed because it was not compatible with the requested OAuth connector.
 
-## Planned MCP tools
+## Important OAuth compatibility detail
 
-- `search_gallery(query, media_type?, limit?)`: search the authenticated owner's synced metadata.
-- `latest_camera_photo()`: return the most recent image metadata, with camera-origin filtering added in the Android index.
-- `get_photo(asset_id)`: return image content only if the user has explicitly made that photo available to the connector.
-- `gallery_status()`: show last metadata sync and explain when the phone is offline or metadata is stale.
+The MCP authorization spec requires resource-bound access tokens. Supabase's hosted OAuth server issues tokens with aud: authenticated by default and its OAuth endpoint has historically accepted but ignored the RFC 8707 resource parameter. This implementation includes a custom access-token hook that adds the exact MCP resource URI to the audience only for OAuth client IDs placed in mcp_private.oauth_clients, while retaining authenticated for Supabase API compatibility.
 
-## Privacy and access model
+Do not skip this step: without the audience hook, the connector may fail resource-server validation or violate the MCP authorization boundary.
 
-- One owner per connector credential in the initial personal deployment; never accept an arbitrary `owner_id` from tool arguments.
-- Keep Supabase service-role credentials on the server only, never in the Android app or repository.
-- Require a high-entropy bearer token for the personal MCP endpoint and compare it in constant time.
-- Never bulk-upload originals by default. The Android app will need an explicit, user-controlled “Share with ChatGPT” action or similarly clear opt-in before image bytes can be uploaded.
-- Use private object storage and short-lived access, or return MCP image content directly. Do not publish permanent public image URLs.
-- Do not log photo bytes, bearer tokens, or private signed URLs.
+## Setup checklist (requires dashboard actions)
 
-## Deployment requirements
+1. Review the migration and apply it to Supabase only after approving the RLS and storage-policy changes.
+2. Deploy gallery-mcp and oauth-consent Edge Functions with platform JWT verification disabled only because gallery-mcp verifies OAuth through withOAuthProtectedResource() and withSupabase({ auth: 'user' }); oauth-consent is a public login/consent page and grants no access without a signed-in user approving the request.
+3. In Supabase Authentication → OAuth Server, enable OAuth 2.1 and set the authorization path to https://qcscozdqdjjwjouxtnzf.supabase.co/functions/v1/oauth-consent.
+4. Create a pre-registered OAuth client for ChatGPT. Use the exact redirect URI shown by the ChatGPT custom connector UI. Prefer Authorization Code + PKCE (S256) and a token endpoint authentication method ChatGPT's UI supports. Do not enable unrestricted dynamic registration for a personal gallery unless you explicitly want other MCP clients to register.
+5. Insert that exact OAuth client_id into the private allowlist, replacing the placeholder with the registered value:
 
-Set server environment variables outside source control:
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `MCP_ACCESS_TOKEN` (long random secret)
-- `GALLERY_OWNER_ID` (the Supabase Auth user UUID for the owner)
+   insert into mcp_private.oauth_clients (client_id, resource_uri, enabled)
+   values ('<EXACT_REGISTERED_CLIENT_ID>', 'https://qcscozdqdjjwjouxtnzf.supabase.co/functions/v1/gallery-mcp', true)
+   on conflict (client_id) do update set enabled = true;
 
-The server must be deployed at a public HTTPS endpoint before adding its URL and bearer credential to a ChatGPT custom MCP connector.
+6. In Supabase Authentication → Hooks → Custom Access Token, select public.custom_access_token_hook. This is necessary for the MCP audience to be included in tokens for the allowlisted client.
+7. Configure the ChatGPT custom connector to use https://qcscozdqdjjwjouxtnzf.supabase.co/functions/v1/gallery-mcp and the OAuth client ID/secret from step 4. Never put the client secret or service-role key in GitHub or Android.
+8. Open Phone Photo Finder, sign in, scan and sync metadata. Tap Share with ChatGPT on one photo. Then ask ChatGPT to search and show that shared photo.
+9. Verify the connector can search, return the newest camera photo, show an explicitly shared image, reject an unshared image, and isolate one user's gallery from another user.
 
-## Important status
+## Tools exposed to ChatGPT
 
-This is a design/contract document, not a deployed connector. The app currently supports metadata sync only; image sharing and connector authentication still need implementation and end-to-end testing.
+- search_gallery(query, media_type?, limit?) — metadata search; includes sharedWithChatGPT.
+- latest_photo() — newest indexed image, including screenshots.
+- latest_camera_photo() — newest image under Android MediaStore DCIM/Camera or Pictures/Camera.
+- get_shared_photo(asset_id) — returns image content only if that exact photo was explicitly shared.
+- gallery_status() — metadata and explicit-share status.
+
+## Privacy and operational notes
+
+- No bulk media upload.
+- Private Storage bucket; only the signed-in owner can upload, and the MCP audience can read that owner's shared preview.
+- OAuth MCP tokens are read-only at the database/storage policy layer; direct Android sessions retain sync/share management permissions.
+- Delete my cloud index removes metadata and shared preview objects for that account.
+- Unsharing a photo removes its private object and shared index row. The original on the phone is not deleted.
+- latest_camera_photo depends on Android's MediaStore path. Some camera apps save to nonstandard folders, so those images may not be classified as camera-origin.
+- End-to-end ChatGPT OAuth/image rendering still requires real connector tests after dashboard setup. A GitHub CI build alone does not prove the connector works.
