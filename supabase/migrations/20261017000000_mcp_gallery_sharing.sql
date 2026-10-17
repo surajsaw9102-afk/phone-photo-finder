@@ -47,11 +47,11 @@ set search_path = pg_catalog, mcp_private
 as $$
 declare
   claims jsonb := coalesce(event -> 'claims', '{}'::jsonb);
-  client_id text := event ->> 'client_id';
+  client_id text := coalesce(event ->> 'client_id', claims ->> 'client_id');
   resource_uri text;
 begin
-  if event ->> 'authentication_method' = 'oauth_provider/authorization_code'
-     and client_id is not null then
+  -- client_id is present on Supabase OAuth tokens, including refreshed tokens.
+  if client_id is not null then
     select c.resource_uri
       into resource_uri
       from mcp_private.oauth_clients c
