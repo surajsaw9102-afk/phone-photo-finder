@@ -195,12 +195,17 @@ internal object SupabaseGalleryApi {
     }
 
     private fun deleteObject(session: SupabaseSession, path: String) {
-        request(
-            path = "/storage/v1/object/gallery-shares",
-            method = "DELETE",
-            body = JSONObject().put("prefixes", JSONArray().put(path)).toString(),
-            token = session.accessToken
-        )
+        try {
+            request(
+                path = "/storage/v1/object/gallery-shares",
+                method = "DELETE",
+                body = JSONObject().put("prefixes", JSONArray().put(path)).toString(),
+                token = session.accessToken
+            )
+        } catch (e: Exception) {
+            // A previously removed object should not block unsharing or account cleanup.
+            if (e.message?.contains("HTTP 404") != true) throw e
+        }
     }
 
     private fun requestArray(path: String, token: String): JSONArray {
