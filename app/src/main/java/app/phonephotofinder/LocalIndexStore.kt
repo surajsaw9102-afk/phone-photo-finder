@@ -34,7 +34,11 @@ internal object LocalIndexStore {
                             name = item.optString("name", "Photo"),
                             mediaType = if (item.optString("type") == "video") "video" else "image",
                             durationMs = if (item.isNull("duration")) null else item.optLong("duration"),
-                            labels = labels
+                            labels = labels,
+                            takenAt = if (item.isNull("takenAt")) null else item.optLong("takenAt"),
+                            cameraOrigin = item.optBoolean("cameraOrigin", false),
+                            width = if (item.isNull("width")) null else item.optInt("width"),
+                            height = if (item.isNull("height")) null else item.optInt("height")
                         )
                     )
                 }
@@ -52,7 +56,11 @@ internal object LocalIndexStore {
                 .put("name", item.name)
                 .put("type", item.mediaType)
                 .put("labels", JSONArray(item.labels))
+                .put("cameraOrigin", item.cameraOrigin)
             if (item.durationMs != null) json.put("duration", item.durationMs)
+            if (item.takenAt != null) json.put("takenAt", item.takenAt)
+            if (item.width != null) json.put("width", item.width)
+            if (item.height != null) json.put("height", item.height)
             array.put(json)
         }
         val temporary = "$FILE_NAME.tmp"
