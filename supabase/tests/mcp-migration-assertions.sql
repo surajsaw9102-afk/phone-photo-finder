@@ -76,7 +76,7 @@ begin
   select count(*) into n from storage.objects;
   if n <> 2 then raise exception 'Direct user should be able to upload and register a shared preview, got % objects', n; end if;
 end;
-$;
+$$;
 rollback;
 
 -- An OAuth token without the MCP audience must not read or mutate gallery data.
