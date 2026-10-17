@@ -26,6 +26,22 @@ function textResult(text: string, structuredContent?: Record<string, unknown>) {
   }
 }
 
+function tokenHasResourceAudience(req: Request): boolean {
+  const authorization = req.headers.get('authorization') ?? ''
+  const token = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]
+  if (!token) return false
+  try {
+    const payloadSegment = token.split('.')[1]
+    if (!payloadSegment) return false
+    const base64 = payloadSegment.replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')))
+    const aud = payload.aud
+    return Array.isArray(aud) ? aud.includes(RESOURCE_URI) : aud === RESOURCE_URI
+  } catch {
+    return false
+  }
+}
+
 function registerTools(server: McpServer, supabase: any) {
   server.registerTool(
     'search_gallery',
@@ -184,6 +200,18 @@ Deno.serve(
   pipeline(
     [withOAuthProtectedResource(), withSupabase({ auth: 'user' })],
     async (req, { supabase }) => {
+      // withSupabase verifies the token signature/session; this additional check
+      // enforces the MCP-specific audience configured by the custom token hook.
+      if (!tokenHasResourceAudience(req)) {
+        return new Response(JSON.stringify({ error: 'invalid_token', error_description: 'Access token audience does not match Phone Photo Finder MCP.' }), {
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+            'WWW-Authenticate': 'Bearer resource_metadata="https://qcscozdqdjjwjouxtnzf.supabase.co/.well-known/oauth-protected-resource/functions/v1/gallery-mcp", error="invalid_token", error_description="Access token audience mismatch"',
+          },
+        })
+      }
       const server = new McpServer(
         { name: 'phone-photo-finder', version: '0.3.0' },
         { instructions: 'Use search_gallery for discovery. Call get_shared_photo only when sharedWithChatGPT is true or the user explicitly asks for an already-shared photo. The server never accepts owner_id; all queries are scoped to the authenticated user. Original media is not bulk-uploaded.' },
