@@ -65,7 +65,11 @@ internal data class PhotoItem(
     val name: String,
     val mediaType: String = "image",
     val durationMs: Long? = null,
-    val labels: List<String> = emptyList()
+    val labels: List<String> = emptyList(),
+    val takenAt: Long? = null,
+    val cameraOrigin: Boolean = false,
+    val width: Int? = null,
+    val height: Int? = null
 )
 
 class MainActivity : ComponentActivity() {
@@ -88,6 +92,7 @@ private fun PhotoFinderScreen() {
     var showAccount by remember { mutableStateOf(false) }
     var confirmDeleteCloud by remember { mutableStateOf(false) }
     var session by remember { mutableStateOf<SupabaseSession?>(null) }
+    var sharedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -292,7 +297,13 @@ private fun PhotoFinderScreen() {
                                         if (email.isBlank() || password.length < 6) status = "Enter your email and password (at least 6 characters)."
                                         else scope.launch {
                                             busy = true
-                                            try { val signedIn = withContext(Dispatchers.IO) { SupabaseGalleryApi.signIn(email, password) }; session = signedIn; password = ""; status = "Signed in. Your gallery stays on this phone until you choose Sync metadata." }
+                                            try {
+                                                val signedIn = withContext(Dispatchers.IO) { SupabaseGalleryApi.signIn(email, password) }
+                                                session = signedIn
+                                                sharedUris = try { withContext(Dispatchers.IO) { SupabaseGalleryApi.sharedAssetIds(signedIn) } } catch (_: Exception) { emptySet() }
+                                                password = ""
+                                                status = "Signed in. Photos stay on this phone unless you explicitly tap Share with ChatGPT."
+                                            }
                                             catch (e: Exception) { status = e.message ?: "Sign-in failed." }
                                             finally { busy = false }
                                         }
@@ -305,7 +316,13 @@ private fun PhotoFinderScreen() {
                                         if (email.isBlank() || password.length < 6) status = "Enter your email and a password of at least 6 characters."
                                         else scope.launch {
                                             busy = true
-                                            try { val signedUp = withContext(Dispatchers.IO) { SupabaseGalleryApi.signUp(email, password) }; session = signedUp; password = ""; status = "Account created and signed in." }
+                                            try {
+                                                val signedUp = withContext(Dispatchers.IO) { SupabaseGalleryApi.signUp(email, password) }
+                                                session = signedUp
+                                                sharedUris = try { withContext(Dispatchers.IO) { SupabaseGalleryApi.sharedAssetIds(signedUp) } } catch (_: Exception) { emptySet() }
+                                                password = ""
+                                                status = "Account created and signed in."
+                                            }
                                             catch (e: Exception) { status = e.message ?: "Sign-up failed." }
                                             finally { busy = false }
                                         }
@@ -332,7 +349,7 @@ private fun PhotoFinderScreen() {
                                     enabled = !busy && photos.isNotEmpty(),
                                     shape = RoundedCornerShape(12.dp)
                                 ) { Text("Sync metadata") }
-                                Button(onClick = { session = null; showAccount = false; password = ""; status = "Signed out on this device." }, enabled = !busy, shape = RoundedCornerShape(12.dp)) { Text("Sign out") }
+                                Button(onClick = { session = null; sharedUris = emptySet(); showAccount = false; password = ""; status = "Signed out on this device." }, enabled = !busy, shape = RoundedCornerShape(12.dp)) { Text("Sign out") }
                             }
                             TextButton(onClick = { confirmDeleteCloud = true }, enabled = !busy, modifier = Modifier.padding(top = 2.dp)) {
                                 Text("Delete my cloud index", color = Color(0xFFFFC66D))
@@ -377,13 +394,45 @@ private fun PhotoFinderScreen() {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(filtered, key = { it.uri.toString() }) { photo ->
-                            PhotoCard(photo) {
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(photo.uri, if (photo.mediaType == "video") "video/*" else "image/*")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(intent)
-                            }
+                            PhotoCard(
+                                photo = photo,
+                                onOpen = {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(photo.uri, if (photo.mediaType == "video") "video/*" else "image/*")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(intent)
+                                },
+                                onShare = if (session != null && photo.mediaType == "image" && photo.uri.toString() !in sharedUris) {
+                                    {
+                                        val activeSession = session
+                                        if (activeSession != null) scope.launch {
+                                            busy = true
+                                            try {
+                                                status = withContext(Dispatchers.IO) { SupabaseGalleryApi.sharePhoto(context, activeSession, photo) }
+                                                sharedUris = sharedUris + photo.uri.toString()
+                                            } catch (e: Exception) {
+                                                status = e.message ?: "Could not share this photo."
+                                            } finally { busy = false }
+                                        }
+                                    }
+                                } else null,
+                                onUnshare = if (session != null && photo.uri.toString() in sharedUris) {
+                                    {
+                                        val activeSession = session
+                                        if (activeSession != null) scope.launch {
+                                            busy = true
+                                            try {
+                                                withContext(Dispatchers.IO) { SupabaseGalleryApi.unsharePhoto(activeSession, photo.uri.toString()) }
+                                                sharedUris = sharedUris - photo.uri.toString()
+                                                status = "Removed ${photo.name} from ChatGPT access. The original on your phone is unchanged."
+                                            } catch (e: Exception) {
+                                                status = e.message ?: "Could not remove the shared photo."
+                                            } finally { busy = false }
+                                        }
+                                    }
+                                } else null
+                            )
                         }
                     }
                 }
@@ -448,9 +497,17 @@ private fun queryMedia(context: android.content.Context, collection: Uri, mediaT
     val kind = if (mediaType == "video") "videos" else "photos"
     return try {
         val projection = if (mediaType == "video") {
-            arrayOf(MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.DURATION)
+            arrayOf(
+                MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.DURATION,
+                MediaStore.Video.Media.DATE_TAKEN, MediaStore.Video.Media.RELATIVE_PATH,
+                MediaStore.Video.Media.WIDTH, MediaStore.Video.Media.HEIGHT
+            )
         } else {
-            arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME)
+            arrayOf(
+                MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME,
+                MediaStore.Images.Media.DATE_TAKEN, MediaStore.Images.Media.RELATIVE_PATH,
+                MediaStore.Images.Media.WIDTH, MediaStore.Images.Media.HEIGHT
+            )
         }
         val result = mutableListOf<PhotoItem>()
         // Avoid sorting the entire library during the initial scan; it can be slow on large phones.
@@ -458,13 +515,28 @@ private fun queryMedia(context: android.content.Context, collection: Uri, mediaT
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
             val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
             val durationColumn = if (mediaType == "video") cursor.getColumnIndex(MediaStore.Video.Media.DURATION) else -1
+            val dateTakenColumn = cursor.getColumnIndex(if (mediaType == "video") MediaStore.Video.Media.DATE_TAKEN else MediaStore.Images.Media.DATE_TAKEN)
+            val relativePathColumn = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+            val widthColumn = cursor.getColumnIndex(MediaStore.MediaColumns.WIDTH)
+            val heightColumn = cursor.getColumnIndex(MediaStore.MediaColumns.HEIGHT)
             while (cursor.moveToNext()) {
                 val duration = if (durationColumn >= 0 && !cursor.isNull(durationColumn)) cursor.getLong(durationColumn) else null
+                val takenAt = if (dateTakenColumn >= 0 && !cursor.isNull(dateTakenColumn)) cursor.getLong(dateTakenColumn).takeIf { it > 0L } else null
+                val relativePath = if (relativePathColumn >= 0 && !cursor.isNull(relativePathColumn)) cursor.getString(relativePathColumn).orEmpty() else ""
+                val normalizedPath = relativePath.trim('/').lowercase(Locale.ROOT)
+                val cameraOrigin = mediaType == "image" &&
+                    (normalizedPath.startsWith("dcim/camera") || normalizedPath.startsWith("pictures/camera"))
+                val width = if (widthColumn >= 0 && !cursor.isNull(widthColumn)) cursor.getInt(widthColumn).takeIf { it > 0 } else null
+                val height = if (heightColumn >= 0 && !cursor.isNull(heightColumn)) cursor.getInt(heightColumn).takeIf { it > 0 } else null
                 result.add(PhotoItem(
                     uri = ContentUris.withAppendedId(collection, cursor.getLong(idColumn)),
                     name = cursor.getString(nameColumn) ?: if (mediaType == "video") "Video" else "Photo",
                     mediaType = mediaType,
-                    durationMs = duration
+                    durationMs = duration,
+                    takenAt = takenAt,
+                    cameraOrigin = cameraOrigin,
+                    width = width,
+                    height = height
                 ))
                 if (result.size % 200 == 0) onProgress("Reading ${result.size} $kind from your phone…")
             }
@@ -477,7 +549,12 @@ private fun queryMedia(context: android.content.Context, collection: Uri, mediaT
 }
 
 @Composable
-private fun PhotoCard(photo: PhotoItem, onOpen: () -> Unit) {
+private fun PhotoCard(
+    photo: PhotoItem,
+    onOpen: () -> Unit,
+    onShare: (() -> Unit)? = null,
+    onUnshare: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     var bitmap by remember(photo.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
     LaunchedEffect(photo.uri) {
@@ -518,6 +595,16 @@ private fun PhotoCard(photo: PhotoItem, onOpen: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2
                 )
+            }
+            if (onShare != null) {
+                TextButton(onClick = onShare, modifier = Modifier.padding(start = 4.dp, end = 4.dp)) {
+                    Text("Share with ChatGPT", color = Color(0xFF57D6C3), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+            if (onUnshare != null) {
+                TextButton(onClick = onUnshare, modifier = Modifier.padding(start = 4.dp, end = 4.dp)) {
+                    Text("Remove ChatGPT share", color = Color(0xFFFFC66D), style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
     }
