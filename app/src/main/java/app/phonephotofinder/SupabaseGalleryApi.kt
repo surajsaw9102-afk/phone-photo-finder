@@ -224,6 +224,20 @@ internal object SupabaseGalleryApi {
     }
 
     fun deleteCloudIndex(session: SupabaseSession) {
+        // Remove private image objects before deleting their index rows. This keeps
+        // the destructive action scoped to the signed-in user's explicit shares.
+        val sharedRows = requestArray("/rest/v1/gallery_shared_media?select=storage_path", session.accessToken)
+        val paths = (0 until sharedRows.length()).mapNotNull { index ->
+            sharedRows.optJSONObject(index)?.optString("storage_path")?.takeIf { it.isNotBlank() }
+        }
+        paths.forEach { path -> deleteObject(session, path) }
+        request(
+            path = "/rest/v1/gallery_shared_media?owner_id=eq." + session.userId,
+            method = "DELETE",
+            body = "",
+            token = session.accessToken,
+            prefer = "return=minimal"
+        )
         request(
             path = "/rest/v1/gallery_items?owner_id=eq." + session.userId,
             method = "DELETE",
