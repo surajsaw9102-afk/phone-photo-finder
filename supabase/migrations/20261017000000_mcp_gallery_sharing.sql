@@ -139,6 +139,12 @@ create policy "Direct users and MCP can read own shared images"
   using (
     bucket_id = 'gallery-shares'
     and (storage.foldername(name))[1] = (select auth.uid())::text
+    and exists (
+      select 1
+        from public.gallery_shared_media shared
+       where shared.owner_id = (select auth.uid())
+         and shared.storage_path = storage.objects.name
+    )
     and (
       (auth.jwt() ->> 'client_id') is null
       or (auth.jwt() -> 'aud') @> '["https://qcscozdqdjjwjouxtnzf.supabase.co/functions/v1/gallery-mcp"]'::jsonb
