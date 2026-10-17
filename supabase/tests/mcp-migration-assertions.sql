@@ -58,8 +58,25 @@ begin
   if n <> 1 then raise exception 'Direct user should see their explicit share, got %', n; end if;
   select count(*) into n from storage.objects;
   if n <> 1 then raise exception 'Direct user should read their active shared preview, got %', n; end if;
+
+  update public.gallery_items set display_name = 'beach-updated.jpg'
+   where asset_id = 'content://owner-a/photo';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'Direct user should update their own gallery metadata, affected % rows', n; end if;
+
+  insert into public.gallery_items (owner_id, asset_id, media_type, display_name)
+  values ('11111111-1111-4111-8111-111111111111', 'content://owner-a/new', 'image', 'new.jpg');
+
+  insert into storage.objects (bucket_id, name)
+  values ('gallery-shares', '11111111-1111-4111-8111-111111111111/new.jpg');
+  insert into public.gallery_shared_media
+    (owner_id, asset_id, display_name, storage_path, mime_type)
+  values ('11111111-1111-4111-8111-111111111111', 'content://owner-a/new', 'new.jpg',
+    '11111111-1111-4111-8111-111111111111/new.jpg', 'image/jpeg');
+  select count(*) into n from storage.objects;
+  if n <> 2 then raise exception 'Direct user should be able to upload and register a shared preview, got % objects', n; end if;
 end;
-$$;
+$;
 rollback;
 
 -- An OAuth token without the MCP audience must not read or mutate gallery data.
