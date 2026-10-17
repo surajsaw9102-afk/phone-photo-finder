@@ -52,7 +52,7 @@ begin
     select c.resource_uri
       into resource_uri
       from mcp_private.oauth_clients c
-     where c.client_id = custom_access_token_hook.client_id
+     where c.client_id = (event ->> 'client_id')
        and c.enabled = true;
 
     if resource_uri is not null then
