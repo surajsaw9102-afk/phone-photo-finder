@@ -58,3 +58,9 @@ A live read of the project's OIDC discovery endpoint returned issuer `https://qc
 - Unsharing a photo removes its private object and shared index row. The original on the phone is not deleted.
 - latest_camera_photo depends on Android's MediaStore path. Some camera apps save to nonstandard folders, so those images may not be classified as camera-origin.
 - End-to-end ChatGPT OAuth/image rendering still requires real connector tests after dashboard setup. A GitHub CI build alone does not prove the connector works.
+
+## Automated validation
+
+- GitHub Actions runs Deno tests for Bearer-token audience parsing and English/Hinglish/Devanagari query tokenization, then type-checks both Edge Functions.
+- A separate disposable PostgreSQL 16 workflow applies the proposed migration against a minimal Supabase-compatible schema and checks owner isolation, wrong-audience denial, read-only OAuth behavior, and Storage access revocation when the explicit share row is removed.
+- These automated tests do not replace a live Supabase OAuth authorization/token exchange, dashboard-hook configuration, actual Android device test, or ChatGPT inline-image rendering test. Those remain release gates.
