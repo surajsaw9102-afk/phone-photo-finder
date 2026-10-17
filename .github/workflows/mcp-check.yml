@@ -23,6 +23,6 @@ jobs:
         with:
           deno-version: v2.x
       - name: Run MCP audience validation tests
-        run: deno test supabase/functions/gallery-mcp/mcp-auth.test.ts
+        run: deno test supabase/functions/gallery-mcp/mcp-auth.test.ts supabase/functions/gallery-mcp/mcp-search.test.ts
       - name: Type-check MCP and OAuth consent Edge Functions
         run: deno check supabase/functions/gallery-mcp/index.ts supabase/functions/oauth-consent/index.ts
