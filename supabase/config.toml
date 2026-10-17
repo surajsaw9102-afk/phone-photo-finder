@@ -1,0 +1,7 @@
+project_id = "qcscozdqdjjwjouxtnzf"
+
+[functions.gallery-mcp]
+verify_jwt = false
+
+[functions.oauth-consent]
+verify_jwt = false
