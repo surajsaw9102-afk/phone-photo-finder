@@ -14,9 +14,9 @@ A privacy-first Android gallery search app. It indexes photos and videos on your
 - Allows the signed-in user to delete their cloud metadata index with a confirmation prompt.
 - Does **not** automatically upload photos, videos, or thumbnails.
 
-## Known limits (MCP integration intentionally excluded)
+## Known limits and experimental ChatGPT integration
 
-- No ChatGPT/MCP connection is included yet.
+- The ChatGPT/MCP connector is experimental on branch `feature/chatgpt-mcp-gallery`; it requires the reviewed Supabase migration, OAuth Server setup, and connector registration documented in [`mcp-server/README.md`](mcp-server/README.md). It is not production-ready until end-to-end OAuth and image-rendering tests pass.
 - Image understanding uses on-device ML Kit image labels, not a full visual-language model or vector embeddings. Searches are best-effort, not guaranteed semantic matches.
 - Videos are searchable by filename and media type; their visual contents are not analyzed.
 - Local index stores MediaStore URIs. Android may invalidate a URI if a file is deleted/moved or permissions change; run a fresh scan to refresh it.
@@ -45,7 +45,7 @@ Requirements: Android Studio, JDK 17, Android SDK platform 35.
 - Gallery access is local and permission-gated.
 - Labels and the local index are stored in the app's private storage.
 - Supabase sync is optional and happens only when you tap **Sync metadata** while signed in.
-- Sync sends item URIs, filenames, media type, MIME type, and labels—not original image/video bytes or thumbnails.
+- Metadata sync sends item URIs, filenames, media type, MIME type, camera-origin flag, dates, dimensions, and labels—not original image/video bytes or thumbnails. The experimental MCP flow uploads a compressed JPEG preview only after you tap **Share with ChatGPT**.
 - The Supabase table uses row-level security so authenticated users can access only their own rows.
 - **Delete my cloud index** deletes synced metadata from your account; it does not delete media or the local index.
 - The Android app contains only a Supabase publishable client key; service-role keys must never be shipped in the app.
