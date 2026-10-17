@@ -26,7 +26,7 @@ button{padding:12px 15px;border:0;border-radius:10px;font-weight:700;cursor:poin
 <p class="small">Use the same account you use in the Phone Photo Finder Android app. This page does not ask for your ChatGPT password.</p>
 </div>
 <div id="consent">
-<p id="client"></p>
+<p id="client"></p><p id="redirect" class="small"></p><p id="scopes" class="small"></p>
 <div class="scope">
 <strong>Requested access</strong>
 <ul><li>Read your synced photo/video names, dates and on-device labels.</li><li>Read only compressed JPEG previews that you explicitly shared in the Android app.</li><li>No permission to upload, delete or modify your phone gallery.</li></ul>
@@ -59,6 +59,8 @@ async function render() {
   loadedDetails = data;
   const appName = data.client?.name || data.client_name || 'ChatGPT';
   document.getElementById('client').textContent = appName + ' is requesting access to the Phone Photo Finder data listed below.';
+  document.getElementById('redirect').textContent = 'Registered redirect URI: ' + (data.redirect_uri || 'not supplied');
+  document.getElementById('scopes').textContent = 'OAuth scopes requested: ' + (data.scope || 'none supplied');
   consent.style.display = 'block';
 }
 document.getElementById('signin').addEventListener('click', async () => {
