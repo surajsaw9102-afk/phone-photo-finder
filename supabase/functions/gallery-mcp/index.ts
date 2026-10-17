@@ -56,13 +56,34 @@ function registerTools(server: McpServer, supabase: any) {
       annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
     },
     async ({ query, media_type, limit }) => {
-      const terms = [...new Set(query.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter((t) => t.length > 1).slice(0, 6))]
+      const rawTerms = query.toLocaleLowerCase().split(/[^\\p{L}\\p{N}]+/u).filter(Boolean)
+      const stopWords = new Set(['show', 'find', 'me', 'please', 'my', 'the', 'a', 'an', 'in', 'on', 'at', 'from', 'with', 'of', 'is', 'was', 'are', 'photo', 'photos', 'image', 'images', 'picture', 'pictures', 'video', 'videos', 'clip', 'clips'])
+      const wantsVideo = rawTerms.some((term) => ['video', 'videos', 'clip', 'clips'].includes(term))
+      const wantsImage = rawTerms.some((term) => ['photo', 'photos', 'image', 'images', 'picture', 'pictures'].includes(term))
+      const synonyms: Record<string, string> = {
+        kutta: 'dog', kutte: 'dog', billi: 'cat', gaadi: 'car', gadi: 'car',
+        samundar: 'beach', samudra: 'ocean', pahad: 'mountain', ped: 'tree',
+        phool: 'flower', khana: 'food', aadmi: 'person', ladki: 'girl',
+        laal: 'red', lal: 'red', neela: 'blue', nila: 'blue', hara: 'green',
+        safed: 'white', kala: 'black', kapde: 'clothing', shirt: 'clothing',
+        aasman: 'sky', suraj: 'sun', paani: 'water', pani: 'water',
+        'कुत्ता': 'dog', 'कुत्ते': 'dog', 'बिल्ली': 'cat', 'गाड़ी': 'car',
+        'समुंदर': 'beach', 'समुद्र': 'ocean', 'पहाड़': 'mountain', 'पेड़': 'tree',
+        'फूल': 'flower', 'खाना': 'food', 'आदमी': 'person', 'लड़की': 'girl',
+        'लाल': 'red', 'नीला': 'blue', 'हरा': 'green', 'सफेद': 'white',
+        'काला': 'black', 'कपड़े': 'clothing', 'आसमान': 'sky', 'सूरज': 'sun', 'पानी': 'water',
+      }
+      const terms = [...new Set(rawTerms
+        .filter((term) => term.length > 1 && !stopWords.has(term))
+        .slice(0, 8)
+        .flatMap((term) => synonyms[term] ? [term, synonyms[term]] : [term]))].slice(0, 12)
+      const effectiveMediaType = media_type ?? (wantsVideo ? 'video' : wantsImage ? 'image' : undefined)
       let request = supabase
         .from('gallery_items')
         .select('asset_id,media_type,display_name,mime_type,taken_at,duration_ms,width,height,labels,camera_origin')
         .order('taken_at', { ascending: false, nullsFirst: false })
         .limit(limit ?? 10)
-      if (media_type) request = request.eq('media_type', media_type)
+      if (effectiveMediaType) request = request.eq('media_type', effectiveMediaType)
       if (terms.length) {
         const filters = terms.map((term) => `display_name.ilike.%${term}%`)
         filters.push(`labels.ov.{${terms.join(',')}}`)
