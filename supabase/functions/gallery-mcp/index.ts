@@ -215,7 +215,6 @@ Deno.serve(
           headers: {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-store',
-            'WWW-Authenticate': 'Bearer resource_metadata="https://qcscozdqdjjwjouxtnzf.supabase.co/.well-known/oauth-protected-resource/functions/v1/gallery-mcp", error="invalid_token", error_description="Access token audience mismatch"',
           },
         })
       }
