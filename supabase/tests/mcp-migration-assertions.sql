@@ -24,8 +24,8 @@ do $$
 declare
   hook_result jsonb;
 begin
+  -- Supabase's documented hook event carries OAuth client_id inside claims.
   hook_result := public.custom_access_token_hook(jsonb_build_object(
-    'client_id', 'chatgpt-test-client',
     'claims', jsonb_build_object('aud', 'authenticated', 'client_id', 'chatgpt-test-client')
   ));
   if hook_result #> '{claims,aud}' <>
