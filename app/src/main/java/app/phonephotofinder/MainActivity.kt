@@ -440,7 +440,7 @@ private fun PhotoFinderScreen() {
                     AlertDialog(
                         onDismissRequest = { confirmDeleteCloud = false },
                         title = { Text("Delete cloud index?") },
-                        text = { Text("This permanently deletes your synced gallery metadata from your account. Photos and videos on this phone are not affected.") },
+                        text = { Text("This permanently deletes your synced gallery metadata and all compressed previews you shared with ChatGPT from cloud storage. Photos and videos on this phone are not affected.") },
                         confirmButton = {
                             Button(
                                 onClick = {
@@ -450,7 +450,8 @@ private fun PhotoFinderScreen() {
                                         busy = true
                                         try {
                                             withContext(Dispatchers.IO) { SupabaseGalleryApi.deleteCloudIndex(activeSession) }
-                                            status = "Cloud gallery metadata deleted. Local photos and index are unchanged."
+                                            sharedUris = emptySet()
+                                            status = "Cloud metadata and all explicitly shared previews were deleted. Local photos and the local index are unchanged."
                                         } catch (e: Exception) {
                                             status = e.message ?: "Could not delete the cloud index."
                                         } finally {
