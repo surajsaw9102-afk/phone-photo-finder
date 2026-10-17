@@ -85,7 +85,10 @@ function registerTools(server: McpServer, supabase: any) {
           .from('gallery_shared_media')
           .select('asset_id')
           .in('asset_id', ids)
-        if (!sharedError) sharedIds = new Set((shared ?? []).map((item: any) => item.asset_id))
+        if (sharedError) {
+          return { ...textResult('Gallery search could not verify photo-sharing status. Please retry.'), isError: true }
+        }
+        sharedIds = new Set((shared ?? []).map((item: any) => item.asset_id))
       }
       const safeResults = results.map((item: any) => ({
         ...item,
