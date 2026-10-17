@@ -25,7 +25,7 @@ Do not skip this step: without the audience hook, the connector may fail resourc
 1. Review the migration and apply it to Supabase only after approving the RLS and storage-policy changes.
 2. Deploy gallery-mcp and oauth-consent Edge Functions with platform JWT verification disabled only because gallery-mcp verifies OAuth through withOAuthProtectedResource() and withSupabase({ auth: 'user' }); oauth-consent is a public login/consent page and grants no access without a signed-in user approving the request.
 3. In Supabase Authentication → OAuth Server, enable OAuth 2.1 and set the authorization path to https://qcscozdqdjjwjouxtnzf.supabase.co/functions/v1/oauth-consent.
-4. Create a pre-registered OAuth client for ChatGPT. Use the exact redirect URI shown by the ChatGPT custom connector UI. Prefer Authorization Code + PKCE (S256) and a token endpoint authentication method ChatGPT's UI supports. Do not enable unrestricted dynamic registration for a personal gallery unless you explicitly want other MCP clients to register.
+4. The live Supabase OIDC discovery document currently advertises S256 and token endpoint methods none/client_secret_basic/client_secret_post, but does not advertise CIMD or a dynamic-registration endpoint. Therefore create a **pre-registered OAuth client** for ChatGPT. Use the exact callback URI shown by the ChatGPT connector management UI (because the current issuer metadata does not advertise RFC 9207 issuer identification, expect a callback-ID-specific URI). Prefer Authorization Code + PKCE (S256) and client_secret_basic if the connector UI supports it. Do not enable unrestricted dynamic registration for a personal gallery.
 5. Insert that exact OAuth client_id into the private allowlist, replacing the placeholder with the registered value:
 
    insert into mcp_private.oauth_clients (client_id, resource_uri, enabled)
@@ -44,6 +44,10 @@ Do not skip this step: without the audience hook, the connector may fail resourc
 - latest_camera_photo() — newest image under Android MediaStore DCIM/Camera or Pictures/Camera.
 - get_shared_photo(asset_id) — returns image content only if that exact photo was explicitly shared.
 - gallery_status() — metadata and explicit-share status.
+
+## Verified discovery details
+
+A live read of the project's OIDC discovery endpoint returned issuer `https://qcscozdqdjjwjouxtnzf.supabase.co/auth/v1`, an authorization-code + refresh-token grant list, S256 PKCE support, and token endpoint authentication methods `client_secret_basic`, `client_secret_post`, and `none`. The currently returned document did not advertise CIMD or a DCR registration endpoint. The OAuth Server must still be enabled/configured in the dashboard and the consent path must be set before live sign-in is considered ready.
 
 ## Privacy and operational notes
 
