@@ -6,6 +6,7 @@ import { McpServer } from 'npm:@modelcontextprotocol/sdk@1.25.3/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from 'npm:@modelcontextprotocol/sdk@1.25.3/server/webStandardStreamableHttp.js'
 import { z } from 'npm:zod@^4.1.13'
 import { hasResourceAudience } from './mcp-auth.ts'
+import { tokenizeQuery } from './mcp-search.ts'
 
 const RESOURCE_URI = 'https://qcscozdqdjjwjouxtnzf.supabase.co/functions/v1/gallery-mcp'
 const BUCKET = 'gallery-shares'
@@ -41,7 +42,7 @@ function registerTools(server: McpServer, supabase: any) {
       annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
     },
     async ({ query, media_type, limit }) => {
-      const rawTerms = query.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+      const rawTerms = tokenizeQuery(query)
       const stopWords = new Set(['show', 'find', 'me', 'please', 'my', 'the', 'a', 'an', 'in', 'on', 'at', 'from', 'with', 'of', 'is', 'was', 'are', 'photo', 'photos', 'image', 'images', 'picture', 'pictures', 'video', 'videos', 'clip', 'clips'])
       const wantsVideo = rawTerms.some((term) => ['video', 'videos', 'clip', 'clips'].includes(term))
       const wantsImage = rawTerms.some((term) => ['photo', 'photos', 'image', 'images', 'picture', 'pictures'].includes(term))
